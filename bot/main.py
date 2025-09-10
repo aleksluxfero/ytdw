@@ -71,13 +71,14 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text('Не удалось получить форматы: %s' % e)
         return
 
-    key = TMP_KEY_PREFIX + str(uuid.uuid4())
+    short_id = uuid.uuid4().hex[:8]
+    redis_key = TMP_KEY_PREFIX + short_id
     payload = {'url': url, 'title': title, 'candidates': candidates}
-    redis_conn.setex(key, CHOICE_TTL, json.dumps(payload))
+    redis_conn.setex(redis_key, CHOICE_TTL, json.dumps(payload))
 
     kb = []
     for idx, c in enumerate(candidates):
-        kb.append([InlineKeyboardButton(c['label'], callback_data=f"choice:{key}:{idx}")])
+        kb.append([InlineKeyboardButton(c['label'], callback_data=f"c:{short_id}:{idx}")])
 
     await update.message.reply_text(f'Форматы для <b>{title}</b>:', parse_mode='HTML', reply_markup=InlineKeyboardMarkup(kb))
 
@@ -86,13 +87,14 @@ async def callback_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     data = q.data
     try:
-        _, key, idx = data.split(':')
+        _, short_id, idx = data.split(':')
         idx = int(idx)
     except Exception:
         await q.edit_message_text('Неправильные данные.')
         return
 
-    raw = redis_conn.get(key)
+    redis_key = TMP_KEY_PREFIX + short_id
+    raw = redis_conn.get(redis_key)
     if not raw:
         await q.edit_message_text('Время выбора истекло. Пришли ссылку заново.')
         return
