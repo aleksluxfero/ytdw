@@ -32,7 +32,19 @@ queue = Queue(RQ_QUEUE, connection=redis_conn)
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 def list_formats(url):
-    opts = {'quiet': True}
+    opts = {
+        'quiet': True,
+        'extractor_retries': 3,
+        'sleep_interval_requests': 1.0,
+        'retry_sleep_functions': {
+            'http': lambda e, tr: min(5 * (2 ** (tr - 1)), 30),
+            'fragment': lambda e, tr: min(5 * (2 ** (tr - 1)), 30),
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
+    }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
 

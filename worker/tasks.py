@@ -132,6 +132,19 @@ def process_job(chat_id, user_id, url, format_id='best', title=None):
         'progress_hooks': [ydl_hook],
         'merge_output_format': 'mp4',
         'quiet': True,
+        'extractor_retries': 3,
+        'retries': 3,
+        'fragment_retries': 3,
+        'concurrent_fragment_downloads': 1,
+        'sleep_interval_requests': 1.0,
+        'retry_sleep_functions': {
+            'http': lambda e, tr: min(5 * (2 ** (tr - 1)), 30),
+            'fragment': lambda e, tr: min(5 * (2 ** (tr - 1)), 30),
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
     }
 
     try:
