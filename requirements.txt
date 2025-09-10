@@ -1,0 +1,8 @@
+yt-dlp
+pyrogram
+tgcrypto
+redis
+rq
+requests
+python-telegram-bot
+psycopg2-binary

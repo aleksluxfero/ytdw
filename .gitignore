@@ -1,0 +1,6 @@
+.env
+sessions/*
+__pycache__/
+*.pyc
+/tmp/
+pgdata/
