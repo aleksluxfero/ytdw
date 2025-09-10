@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 import json
@@ -18,6 +20,11 @@ REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
 RQ_QUEUE = os.environ.get('RQ_QUEUE', 'downloads')
 CHOICE_TTL = 600
 TMP_KEY_PREFIX = 'yt:choice:'
+
+# Ensure project root is on sys.path for package imports when run via PM2/cron
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
 redis_conn = redis.from_url(REDIS_URL)
 queue = Queue(RQ_QUEUE, connection=redis_conn)
@@ -118,6 +125,14 @@ def main():
     app.add_handler(CommandHandler('start', cmd_start))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), on_message))
     app.add_handler(CallbackQueryHandler(callback_choice))
+    
+    async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        try:
+            log.exception('Unhandled error', exc_info=context.error)
+        except Exception:
+            pass
+
+    app.add_error_handler(on_error)
 
     app.run_polling()
 
