@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import psycopg2
 
 DB = os.environ.get('DATABASE_URL', 'postgresql://ytdlp:ytdlp@db:5432/ytdlp')

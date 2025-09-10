@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from pyrogram import Client
 
 API_ID = int(os.environ.get('API_ID'))
