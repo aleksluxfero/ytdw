@@ -8,7 +8,7 @@ import redis
 import yt_dlp
 from rq import Queue
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
 logging.basicConfig(level=os.environ.get('LOG_LEVEL','INFO'))
 log = logging.getLogger(__name__)
@@ -22,8 +22,7 @@ TMP_KEY_PREFIX = 'yt:choice:'
 redis_conn = redis.from_url(REDIS_URL)
 queue = Queue(RQ_QUEUE, connection=redis_conn)
 
-updater = Updater(BOT_TOKEN, use_context=True)
-disp = updater.dispatcher
+app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 def list_formats(url):
     opts = {'quiet': True}
@@ -53,23 +52,23 @@ def list_formats(url):
     candidates.append({'id': 'best', 'label': 'Лучшее качество', 'ext': None})
     return title, candidates
 
-def cmd_start(update: Update, context: CallbackContext):
-    update.message.reply_text('Привет! Пришли ссылку — я соберу доступные форматы.')
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('Привет! Пришли ссылку — я соберу доступные форматы.')
 
-def on_message(update: Update, context: CallbackContext):
+async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or '').strip()
     if not text or 'http' not in text:
-        update.message.reply_text('Пришли ссылку на видео.')
+        await update.message.reply_text('Пришли ссылку на видео.')
         return
 
     url = text.split()[0]
-    msg = update.message.reply_text('Собираю форматы...')
+    msg = await update.message.reply_text('Собираю форматы...')
 
     try:
         title, candidates = list_formats(url)
     except Exception as e:
         log.exception('list_formats failed')
-        update.message.reply_text('Не удалось получить форматы: %s' % e)
+        await update.message.reply_text('Не удалось получить форматы: %s' % e)
         return
 
     key = TMP_KEY_PREFIX + str(uuid.uuid4())
@@ -80,22 +79,22 @@ def on_message(update: Update, context: CallbackContext):
     for idx, c in enumerate(candidates):
         kb.append([InlineKeyboardButton(c['label'], callback_data=f"choice:{key}:{idx}")])
 
-    update.message.reply_text(f'Форматы для <b>{title}</b>:', parse_mode='HTML', reply_markup=InlineKeyboardMarkup(kb))
+    await update.message.reply_text(f'Форматы для <b>{title}</b>:', parse_mode='HTML', reply_markup=InlineKeyboardMarkup(kb))
 
-def callback_choice(update: Update, context: CallbackContext):
+async def callback_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
-    q.answer()
+    await q.answer()
     data = q.data
     try:
         _, key, idx = data.split(':')
         idx = int(idx)
     except Exception:
-        q.edit_message_text('Неправильные данные.')
+        await q.edit_message_text('Неправильные данные.')
         return
 
     raw = redis_conn.get(key)
     if not raw:
-        q.edit_message_text('Время выбора истекло. Пришли ссылку заново.')
+        await q.edit_message_text('Время выбора истекло. Пришли ссылку заново.')
         return
 
     payload = json.loads(raw)
@@ -104,22 +103,21 @@ def callback_choice(update: Update, context: CallbackContext):
     candidates = payload['candidates']
 
     if idx < 0 or idx >= len(candidates):
-        q.edit_message_text('Неверный формат.')
+        await q.edit_message_text('Неверный формат.')
         return
 
     fmt = candidates[idx]
     from worker.tasks import process_job
-    job = queue.enqueue(process_job, q.message.chat_id, q.from_user.id, url, fmt['id'], title)
+    job = queue.enqueue(process_job, q.message.chat.id, q.from_user.id, url, fmt['id'], title)
     pos = len(queue)
-    q.edit_message_text(f'Добавлено в очередь. Текущая позиция: {pos}.')
+    await q.edit_message_text(f'Добавлено в очередь. Текущая позиция: {pos}.')
 
 def main():
-    disp.add_handler(CommandHandler('start', cmd_start))
-    disp.add_handler(MessageHandler(Filters.text & ~Filters.command, on_message))
-    disp.add_handler(CallbackQueryHandler(callback_choice))
+    app.add_handler(CommandHandler('start', cmd_start))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), on_message))
+    app.add_handler(CallbackQueryHandler(callback_choice))
 
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 if __name__ == '__main__':
     main()

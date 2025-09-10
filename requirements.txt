@@ -1,8 +1,9 @@
-yt-dlp
-pyrogram
-tgcrypto
-redis
-rq
-requests
-python-telegram-bot
-psycopg2-binary
+yt-dlp>=2024.8.6
+pyrogram>=2.0.106
+tgcrypto>=1.2.5
+redis>=5.0.7
+rq>=1.16.2
+requests>=2.32.3
+python-telegram-bot>=21.6
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.1
